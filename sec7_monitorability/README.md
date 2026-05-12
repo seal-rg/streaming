@@ -41,24 +41,8 @@ Accelerate + DeepSpeed (ZeRO-2 for 8B/27B-dense, ZeRO-3 for MoE/32B):
 accelerate launch \
   --config_file train/config/deepspeed_zero2.yaml \
   train/train/train_stream.py \
-  --config config/cluster_sweep/qwen8b_pack5_trimbot_drop02_ep3.yaml
+  --config config/qwen27b_coldn_pack7_lr2e5_trimbot_drop02_wd1e3_ep2.yaml
 ```
-
-Key configs in `config/cluster_sweep/`:
-
-| Config                                                              | Paper row                      |
-| ------------------------------------------------------------------- | ------------------------------ |
-| `qwen8b_pack5_trimbot_drop02_ep3.yaml`                              | **Stream-8B** (Qwen3-8B base)  |
-| `s20-qwen8b_chat_baseline_fixed.yaml`                               | 8B Vanilla single-stream       |
-| `s20-qwen8b_chat_baseline_analytical.yaml`                          | 8B chat baseline (analytical)  |
-| `s20-qwen8b_chat_baseline_allstreams.yaml`                          | 8B chat baseline (all-streams) |
-| `qwen27b_coldn_pack5_trimbot_drop02_ep2.yaml`                       | **Stream-27B** (pack-5)        |
-| `qwen27b_coldn_pack7_lr2e5_trimbot_drop02_wd1e3_ep2.yaml`           | Stream-27B (pack-7)            |
-| `qwen27b_coldn_pack8_bs15k_trimbot_drop02_wd1e3_ep2.yaml`           | Stream-27B (bs15k)             |
-| `s20-qwen27b_longce_fixed_nopack.yaml`                              | Stream-27B (longce)            |
-| `s20-qwen27b_coldn_nopack_lr2e5_wd1e3_ep2.yaml`                     | Stream-27B (coldn-nopack)      |
-| `qwen_moe_coldn_pack5_trimbot_drop02_wd1e3_ep2.yaml`                | Stream-MoE-pack5               |
-| `qwen32b_pack7_lr2e5_trimbot_drop02_wd1e3_ep2.yaml`                 | Stream-32B-pack7               |
 
 Base templates (starting points for new training runs) live in `config/`.
 
@@ -97,8 +81,8 @@ The three paper benchmarks live in `eval/benchmarks/`:
 | Paper metric                              | Module                            | Data                                      |
 | ----------------------------------------- | --------------------------------- | ----------------------------------------- |
 | AF eval-awareness / AF sub-vocalization   | `alignment_faking.py`             | `alignment_faking_prompts_v2.json`        |
-| Monitor accuracy (Meinke/Schoen 6-class)  | `monitor_accuracy.py`               | `monitor_accuracy_50_labeled.json`          |
-| Concern sub-vocalization                  | `concern_subvocalization.py`          | `concern_subvocalization_50.json`             |
+| Monitor accuracy (Meinke/Schoen 6-class)  | `monitor_accuracy.py`             | `monitor_accuracy_50_labeled.json`        |
+| Concern sub-vocalization                  | `concern_subvocalization.py`      | `concern_subvocalization_50.json`         |
 
 Run a stream model:
 
@@ -148,7 +132,7 @@ train/
     block_causal_deltanet.py    per-stream DeltaNet state forwarding
     role_gating.py              optional role-gating heads
 data_prepare/                   .jsonl → .npz packing
-config/                         base configs + per-paper-row sweep configs
+config/                         base configs
 eval/
   stream_inference.py           streaming decoder
   demo_stream.py / demo_interactive.py / test_interrupt.py  demos

@@ -1,0 +1,66 @@
+model: /home/models/Qwen3.5-27B
+data: /home/jgeiping/stream-data/v12_processed_complete_q35
+wandb_project: StreamLLM
+name: s18-qwen27b_coldn_pack7_lr2e5_trimbot_drop02_wd1e3_ep2
+trainer: baseline
+channels: 10
+block_size: 10240
+mask_user_loss: true
+prefix_rows: 0
+architecture:
+  channel_embedding: additive
+  attention_mask: block_causal
+  deltanet_block_causal: column
+  deltanet_conv: column
+role_gating:
+  enabled: false
+  granularity: layer
+  mode: query
+  mlp_hidden: 0
+  tau: 2.0
+  beta_max: 0.8
+  log_eps: 1e-4
+  log_clip_min: -6.0
+  uniform_mix: 0.05
+optim:
+  backbone_lr: 2e-5
+  channel_embedding_lr: 2e-5
+  weight_decay: 1e-3
+  warmup_ratio: 0.1
+  cooldown_ratio: 0.2
+  scheduler: constant_with_warmup
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  max_grad_norm: 0.5
+training:
+  epochs: 2
+  max_steps: -1
+  micro_batch_size: 1
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
+  save_steps: 0
+  logging_steps: 1
+  neftune_alpha: null
+  attention_dropout: 0.2
+  label_smoothing: 0.0
+  z_loss_weight: 0.0
+  save_best_model: true
+  save_final_model: false
+longce:
+  gamma: 50.0
+  warmup_steps: 0
+  ramp_steps: 0
+  prob: 1.0
+  num_channels_per_step: 3
+  uniform_mix: 0.0
+eval:
+  val_samples: 120
+  eval_steps: 50
+  num_samples: 4
+  prefill_frac: 0.25
+  gen_rows: 100
+  temperature: 0.6
+  top_k: 20
+  top_p: 0.95
+pack_trim: bottom
+pack_samples: 7
