@@ -1,4 +1,4 @@
-# Multi-Stream LLMs — Unblocking Language Models with Parallel Streams of Thoughts, Inputs and Outputs
+# Multi-Stream LLMs: Unblocking Language Models with Parallel Streams of Thoughts, Inputs and Outputs
 
 Code release for *"Multi-Stream LLMs: Unblocking Language Models with Parallel
 Streams of Thoughts, Inputs and Outputs"* (Su, Yang, Li, Geiping; 2026).
