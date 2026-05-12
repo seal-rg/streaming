@@ -1,0 +1,67 @@
+model: ${MODELS_ROOT}/Qwen3-8B
+data: ${DATA_ROOT}/v12_processed_extension
+wandb_project: StreamLLM
+name: null
+
+trainer: baseline # baseline | longce
+channels: 10
+block_size: 5120
+mask_user_loss: True
+prefix_rows: 0
+
+architecture:
+  channel_embedding: additive # additive | none
+  attention_mask: block_causal # block_causal | causal
+
+role_gating:
+  enabled: false
+  granularity: layer # layer | head
+  mode: query # query | query_ctx
+  mlp_hidden: 0
+  tau: 2.0
+  beta_max: 0.8
+  log_eps: 1e-4
+  log_clip_min: -6.0
+  uniform_mix: 0.05
+
+optim:
+  backbone_lr: 2e-5
+  channel_embedding_lr: 2e-5
+  weight_decay: 1e-4
+  warmup_ratio: 0.1
+  cooldown_ratio: 0.2
+  scheduler: constant_with_warmup
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  max_grad_norm: 0.5
+
+training:
+  epochs: 2
+  max_steps: -1
+  micro_batch_size: 2
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
+  save_steps: 0
+  logging_steps: 1
+  neftune_alpha: null
+  attention_dropout: 0.1
+  label_smoothing: 0.0
+  z_loss_weight: 0.0
+
+longce:
+  gamma: 50.0
+  warmup_steps: 0
+  ramp_steps: 0
+  prob: 1.0
+  num_channels_per_step: 3
+  uniform_mix: 0.0 # 0.0 = pure importance, 1.0 = pure uniform (= standard CE)
+
+eval:
+  val_samples: 60
+  eval_steps: 50
+  num_samples: 8
+  prefill_frac: 0.25
+  gen_rows: 256
+  temperature: 0.6
+  top_k: 20
+  top_p: 0.95

@@ -1,0 +1,32 @@
+__pycache__
+.idea
+.DS_Store
+*.egg-info
+build
+.venv
+.vscode
+.env
+
+logs/
+log/
+
+eval_results*
+notes/
+
+*.csv
+*.jsonl
+
+# Raw benchmark data subdirectories (committed subsets are *_50.json at top level)
+eval/benchmarks/data/*/
+
+scripts/sweep_jobs*.sh
+.tokenizer_cache/
+
+wandb/
+results/
+# autogen sweep configs
+config/sweep/
+config/cluster_sweep
+
+results.csv
+uv.lock

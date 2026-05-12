@@ -1,0 +1,66 @@
+[project]
+dependencies = [
+  "torch>=2.8",
+  "transformers>=5.2.0",
+  "trl>=0.28.0",
+  "datasets",
+  "accelerate",
+  "deepspeed==0.18.6",
+  "numpy",
+  "sympy",
+  "latex2sympy2",
+  "wandb",
+  "sentencepiece",
+  "protobuf",
+  "flash-linear-attention==0.4.2",
+  "matplotlib>=3.10.9",
+  "sentence-transformers>=5.4.1",
+]
+description = "N-channel parallel stream language model training"
+name = "stream-llm"
+requires-python = ">=3.12"
+version = "0.1.0"
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ipython",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.pyright]
+exclude = ["**/__pycache__", "**/*ipynb*", "**/node_modules", "**/.*", ".venv"]
+include = ["train"]
+venv = ".venv"
+venvPath = "."
+
+pythonPlatform = "Linux"
+pythonVersion = "3.12"
+# ignores
+reportIncompatibleMethodOverride = false
+reportPrivateImportUsage = false
+typeCheckingMode = "basic"
+
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+ignore = [
+  "E402", # module-level import not at top of file
+  "E501", # line too long (trust the formatter)
+  "E741", # ambiguous variable name (common in math/ML code)
+  "B007", # unused loop variable
+  "B011", # assert False
+]
+select = [
+  "E", # pycodestyle errors
+  "F", # pyflakes
+  "I", # isort
+  "B", # flake8-bugbear
+  "UP", # pyupgrade
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]

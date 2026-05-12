@@ -1,0 +1,32 @@
+compute_environment: LOCAL_MACHINE
+debug: false
+deepspeed_config:
+  deepspeed_multinode_launcher: standard
+  offload_optimizer_device: cpu  # 优化器卸载到CPU
+  offload_param_device: cpu      # 参数卸载到CPU
+  zero3_init_flag: true           # 改为true
+  zero3_save_16bit_model: true
+  zero_stage: 3                   # 改为3！
+  
+  # 激活检查点优化
+  gradient_checkpointing: true
+  partition_activations: true
+  cpu_checkpointing: true
+  contiguous_memory_optimization: true  # 改为true
+  number_checkpoints: null              # 改为null，自动优化
+  synchronize_checkpoint_boundary: false # 改为false
+  profile: false
+  
+distributed_type: DEEPSPEED
+downcast_bf16: 'no'
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 4
+rdzv_backend: static
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false
