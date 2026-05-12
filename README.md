@@ -56,7 +56,7 @@ Pick the section you care about and follow its README:
 ## Citation
 
 ```bibtex
-@article{su2026multistream,
+@article{su_2026_multi-stream,
   title={Multi-Stream LLMs: Unblocking Language Models with Parallel Streams of Thoughts, Inputs and Outputs},
   author={Su, Guinan and Yang, Yanwu and Li, Xueyan and Geiping, Jonas},
   year={2026}
