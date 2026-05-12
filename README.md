@@ -16,15 +16,14 @@ sec5_efficiency/      Paper Section 5: Efficiency
                       Eval: GSM8K, MATH500, LogicNLI, SQuAD, ProofWriter, PubMedQA.
 
 sec6_security/        Paper Section 6: Security
-                      Qwen2.5-7B / Qwen3-4B with 2-stream interleaved packing.
+                      Qwen2.5-7B / Qwen3-4B with interleaved packing.
                       Trains on multi-stream-reconstructed Alpaca.
                       Eval: TensorTrust, Gandalf, Purple, RuLES, StruQ-ID/OOD,
                       NESSiE, IFEval.
 
 sec7_monitorability/  Paper Section 7: Monitorability
                       Stream-8B (Qwen3-8B) and Stream-27B (Qwen3.5-27B) with
-                      10 cognitive streams via additive channel embedding +
-                      block-causal attention. Qwen3.5 uses per-stream
+                      10 cognitive streams. Qwen3.5 uses per-stream
                       Gated-DeltaNet states.
                       Eval: AF eval-aware/sub-vocalization, monitor accuracy
                       (Meinke/Schoen 6-class), concern sub-vocalization.
@@ -43,7 +42,7 @@ sec7_monitorability/  Paper Section 7: Monitorability
 
 Note: Sec 5 / Sec 6 model classes are named `Qwen2ForMedusa` /
 `Qwen3ForMedusa` and have a `medusa_num_heads` config attribute for historical reasons, but at
-inference time use a single LM head as described in the paper.
+inference time the model functions as described in the paper with complete weight sharing between streams.
 
 ## Quick start
 
