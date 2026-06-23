@@ -1,1 +1,1 @@
-from .multihead_dataset_26 import CustomMultiHeadDataset, CustomDataCollator
+from .multihead_dataset import CustomMultiHeadDataset, CustomDataCollator

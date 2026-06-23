@@ -44,7 +44,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from .configuration_qwen2medusa import Qwen2MedusaConfig as Qwen2Config
+from .configuration_qwen2 import Qwen2StreamConfig as Qwen2Config
 
 if is_flash_attn_2_available():
     from ...modeling_flash_attention_utils import _flash_attention_forward
@@ -1312,49 +1312,31 @@ def _minf(dtype: torch.dtype) -> float:
 
 
 # -----------------------------
-# Simple ResBlock (as used in your medusa head)
-# If you already have ResBlock elsewhere, you can remove this and import yours.
 # -----------------------------
-class ResBlock(nn.Module):
-    def __init__(self, dim: int):
-        super().__init__()
-        self.linear = nn.Linear(dim, dim)  # <= 名字必须是 linear
-        self.act = nn.SiLU()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x + self.linear(self.act(x))
-
-
 import torch
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 
 def compute_span_ce_sum_single_head_fast(
     logits: torch.Tensor,  # [B,S,V]
-    labels: torch.Tensor,  # [B,S]  span 内是 token id，其它是 -100
+    labels: torch.Tensor,  # [B,S]
     span_start: torch.Tensor,  # [B]    0-based inclusive
     span_end: torch.Tensor,  # [B]    0-based exclusive
 ) -> dict[str, Any]:
     """
-    单 head：只对每个样本的一个 span 计算 SUM CE loss（不在这里做 mean）。
-    使用 shift 全序列 + mask，避免 start-1 逻辑出错。
-
-    对齐规则：
-      pred position i 预测 labels position i+1
-      pred = logits[:, :-1, :]
-      tgt  = labels[:, 1:]
-    span 在 labels 空间是 [start, end)
-    映射到 tgt 空间是 [start-1, end-1)
+    Compute sum CE loss for a single span per sample (no mean here).
+    Uses full-sequence shift + mask; span [start, end) in label space
+    maps to [start-1, end-1) in prediction space.
     """
     B, S, V = logits.shape
     device = logits.device
 
-    # next-token 对齐
+    # next-token alignment
     pred = logits[:, :-1, :]  # [B,S-1,V]
     tgt = labels[:, 1:].to(device)  # [B,S-1]
 
-    # span -> tgt 空间： [start-1, end-1)
-    st = (span_start.to(device) - 1).clamp(0, S - 1)  # clamp 到 [0, S-1]
+    # shift span to prediction space: [start-1, end-1)
+    st = (span_start.to(device) - 1).clamp(0, S - 1)
     ed = (span_end.to(device) - 1).clamp(0, S - 1)
 
     pos = torch.arange(S - 1, device=device)[None, :]  # [1,S-1]
@@ -1367,7 +1349,7 @@ def compute_span_ce_sum_single_head_fast(
             "num_tokens": 0,
         }
 
-    # 只做一次 CE
+    # single CE call over all valid tokens
     sum_loss = F.cross_entropy(pred[mask], tgt[mask], reduction="sum").float()
 
     return {
@@ -1382,14 +1364,8 @@ def get_span_from_boundaries_single(
     supervise_im_end: bool = True,
 ) -> tuple[int, int] | None:
     """
-    从 boundaries 里取单个 assistant span，返回 0-based [start,end)。
-    你现在 boundaries 里用的是类似：
-      start = assistant_solution_start 或 content_start
-      end   = real_content_end 或 content_end
-      可选包含 im_end_pos (end = im_end_pos+1)
-
-    ⚠️ 注意：如果你的 boundaries 里的 start/end 是 1-based，
-    请在这里统一减 1（见注释）。
+    Extract a single assistant span from a boundaries dict.
+    Returns 0-based [start, end) or None if unavailable.
     """
     if not isinstance(bd, dict):
         return None
@@ -1399,7 +1375,7 @@ def get_span_from_boundaries_single(
     if not isinstance(all_heads, list) or not isinstance(ahidx, list) or len(ahidx) < 1:
         return None
 
-    # 单 head：取 assistant_head_indices[0]
+    # single head: take assistant_head_indices[0]
     try:
         hid = int(ahidx[0])
     except Exception:
@@ -1414,17 +1390,12 @@ def get_span_from_boundaries_single(
     start = int(h.get("assistant_solution_start", h.get("content_start", -1)))
     end = int(h.get("real_content_end", h.get("content_end", -1)))
 
-    # -------- 如果你的 boundaries 是 1-based，就在这里做：start -= 1; end -= 1 --------
-    # start -= 1
-    # end -= 1
-
-    # 变成 0-based 合法区间
+    # clamp to valid 0-based range
     start = max(0, start)
     end = min(max(end, 0), S)
 
     if supervise_im_end:
         ie = int(h.get("im_end_pos", -1))
-        # 如果要把 im_end 也纳入监督：end = min(end, ie+1)
         if 0 <= ie < S:
             end = min(max(end, ie + 1), S)
 
@@ -1433,7 +1404,7 @@ def get_span_from_boundaries_single(
     return start, end
 
 
-class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
+class Qwen2ForMultiStream(Qwen2PreTrainedModel, GenerationMixin):
     def __init__(self, config):
         super().__init__(config)
 
@@ -1450,7 +1421,7 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
             # "${MODELS_ROOT}/Qwen--Qwen2.5-32B/snapshots/medusa"
         )
 
-        self.medusa_num_heads = config.medusa_num_heads
+        self.num_streams = config.num_streams
         self.im_start = self.tokenizer.convert_tokens_to_ids("<|im_start|>")
         self.im_end = self.tokenizer.convert_tokens_to_ids("<|im_end|>")
         self.assistant_tokens = self.tokenizer.encode("assistant", add_special_tokens=False)
@@ -1509,7 +1480,7 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         else:
             sum_loss, num_tokens, output, log_dict = None, None, ret, {}
 
-        logits_bsv = output[0]  # ✅ 你这个 model forward 输出的 logits 是 [B,S,V]
+        logits_bsv = output[0]
         return sum_loss, num_tokens, logits_bsv, output, log_dict
 
     def forward(
@@ -1517,10 +1488,10 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: torch.Tensor | None = None,
         position_ids: torch.LongTensor | None = None,
-        head_start: torch.Tensor | None = None,  # [B,H] 或 [B] 或 [B,1]
-        head_end: torch.Tensor | None = None,  # [B,H] 或 [B] 或 [B,1]
-        head_ok: torch.Tensor | None = None,  # [B,H] 或 [B]
-        boundaries: list[dict] | None = None,  # 备选慢路径
+        head_start: torch.Tensor | None = None,
+        head_end: torch.Tensor | None = None,
+        head_ok: torch.Tensor | None = None,
+        boundaries: list[dict] | None = None,
         past_key_values: list[torch.FloatTensor] | None = None,
         inputs_embeds: torch.FloatTensor | None = None,
         labels: torch.LongTensor | None = None,
@@ -1550,7 +1521,7 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         )
 
         hidden_states = outputs[0]  # [B,S,H]
-        logits = self.lm_head(hidden_states)  # [B,S,V] ✅一次
+        logits = self.lm_head(hidden_states)
 
         sum_loss_total = torch.zeros((), device=logits.device, dtype=torch.float32)
         num_tokens_total = torch.zeros((), device=logits.device, dtype=torch.float32)
@@ -1572,21 +1543,18 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
                     hok = torch.ones((B, H), device=device, dtype=torch.bool)
                 else:
                     hok = head_ok.to(device).bool()
-                    # 允许传 [B] 的 head_ok（单 head 情况） -> broadcast
                     if hok.dim() == 1:
                         hok = hok[:, None].expand(B, H)
 
-                # clamp 防越界
                 hs = hs.clamp(0, S)
                 he = he.clamp(0, S)
 
-                # next-token 对齐
+                # next-token alignment
                 pred = logits[:, :-1, :]  # [B,S-1,V]
                 tgt = labels[:, 1:].to(device)  # [B,S-1]
                 S1 = S - 1
                 V = pred.size(-1)
 
-                # span [start,end) 在 tgt 空间对应 [start-1, end-1)
                 st = (hs - 1).clamp(0, S1)  # [B,H]
                 ed = (he - 1).clamp(0, S1)  # [B,H]
 
@@ -1639,7 +1607,6 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
                         span_end = torch.where(ok, span_end, torch.zeros_like(span_end))
 
                 elif boundaries is not None:
-                    # 备选慢路径：从 boundaries 取单 span
                     st_list = []
                     ed_list = []
                     for b in range(B):
@@ -1840,13 +1807,12 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         return outputs
 
     @torch.no_grad()
-    def medusa_generate_interleaved_v2_stream_user(
+    def generate_stream(
         self,
-        # 传原始 question 文本，让函数自己 tokenize 成 user_stream
         question_text: str,
-        assistant_prefix_text: str = "",  # 例如 "Let me first understand..."
-        max_new_tokens: int = 1024,  # assistant 最多生成多少 token
-        max_steps: int = 4096,  # 总步数上限（包含 user feed + assistant feed）
+        assistant_prefix_text: str = "",
+        max_new_tokens: int = 1024,
+        max_steps: int = 4096,
         temperature: float = 1.0,
         top_p: float = 0.8,
         top_k: int = 0,
@@ -1857,13 +1823,8 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         disable_assistant_cross_channel: bool = False,
     ) -> dict[int, torch.Tensor]:
         """
-        ✅ 真 streaming user：user 内容 token 不在 Step0 进入 cache，而是在后续逐 token feed 进入 cache。
-        ✅ 同时 assistant 可以在 user 尚未全部进入 cache 时生成（每步可同时 feed user_token + assistant_token）。
-        ✅ v2 训练对齐：
-            - cid: system=0, user=1, assistant h=2+h
-            - offset: user offset = sys_len; assistant offset = sys_len
-            - cross-channel: y_key < y_query (STRICT)
-        返回 {0: tensor([...])}，只做 1 个 assistant head（你 eval 脚本就是 1 head）。
+        2-stream interleaved generation: user tokens arrive one per step while
+        the assistant stream generates in parallel. Returns {0: token_tensor}.
         """
 
         device = next(self.parameters()).device
@@ -1885,15 +1846,14 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         sys_msg = getattr(self, "system_message", "You are a helpful assistant.")
         sys_ids = tokenizer.encode(sys_msg, add_special_tokens=False)
 
-        # user_stream: question tokens + im_end（把 im_end 也当成 user 的最后一个“到达 token”）
+        # user_stream: question tokens + im_end
         user_content_ids = tokenizer.encode(question_text, add_special_tokens=False)
         user_stream = user_content_ids + [im_end]
 
-        # assistant 前置文本（可选），放在 assistant prefix 后面，作为“已存在的 assistant content（prefill）”
+        # optional assistant prefill text prepended before generation
         asst_prefill_ids = tokenizer.encode(assistant_prefix_text, add_special_tokens=False) if assistant_prefix_text else []
 
-        # ---------- Step0: cache 里只放 system(full) + user_prefix_only + assistant_prefix_only(+asst_prefill可选) ----------
-        # 注意：这里不再是从 input_ids slice，而是“构造一个新的 step0 序列”
+        # Step0: prefill system (closed) + user prefix only + assistant prefix + optional prefill
         # step0_ids: system block closed; user block just opened (prefix only, no content, no im_end);
         #            assistant block opened (prefix + optional prefill)
         step0_ids: list[int] = []
@@ -1955,14 +1915,13 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         def _minf(dtype: torch.dtype) -> float:
             return -1e9 if dtype == torch.float32 else -1e4
 
-        # eligible keys: prefix + real + (optional im_end). 在 step0 里 system 有 im_end，user 没有，assistant 没有
-        eligible = set(range(S0))  # 你训练时基本是所有 prefix/real token 都 eligible，这里直接全放开
+        eligible = set(range(S0))
 
         attn0 = torch.full((S0, S0), _minf(torch.float32), device=device, dtype=torch.float32)
         diag = torch.arange(S0, device=device)
         attn0[diag, diag] = 0.0
 
-        # intra-block causal（按“块”来）
+        # intra-block causal
         # system block: [0, sys_len)
         for q in range(0, sys_len):
             attn0[q, 0 : q + 1] = 0.0
@@ -2019,7 +1978,6 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
         user_ptr = 0  # next user_stream token index to feed
 
         # assistant generation
-        # 先从 step0 的最后一个 assistant token hidden 取 first token（如果 assistant_prefill_len>0 用其最后一个，否则用 assistant_prefix 最后一个）
         asst_ctx_pos = S0 - 1  # last token in step0 is in assistant block
         hidden = out0.last_hidden_state[0, asst_ctx_pos]
         logits = self.lm_head(hidden)
@@ -2046,7 +2004,6 @@ class Qwen2ForMedusa(Qwen2PreTrainedModel, GenerationMixin):
             pending_asst = None
 
         # ---------- main loop ----------
-        # 每个 step：最多 feed 2 个 token（user token if any + assistant pending token if any）
         for _ in range(max_steps):
             if asst_gen_count >= max_new_tokens:
                 break

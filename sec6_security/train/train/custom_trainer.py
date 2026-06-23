@@ -329,7 +329,7 @@ class CustomizedTrainer(trl.SFTTrainer):
                 ids = input_ids.clone()
                 attn2 = base_attn.clone()
 
-                # ✅ 1) 屏蔽 user 全部内容（作为 KEY 列），让任何 query 看不到 user 内容
+                # 1) mask user content keys so no query can attend to user tokens
                 if self.self_only_mask_user and (user_start is not None) and (user_end is not None):
                     u_st = user_start.to(device).long()
                     u_ed = user_end.to(device).long()
@@ -343,7 +343,7 @@ class CustomizedTrainer(trl.SFTTrainer):
                             if self.self_only_drop_input_ids:
                                 ids[b, st_u:ed_u] = drop_token_id
 
-                # ✅ 2) 屏蔽其它 head span（作为 KEY 列），只保留 keep_h
+                # 2) mask all other head spans, keeping only keep_h visible
                 for b in range(B):
                     for h in range(H):
                         if h == keep_h:

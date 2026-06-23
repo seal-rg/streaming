@@ -1,8 +1,8 @@
 # Section 6: Security
 
-Code for **Section 6 (Security)** of *"Multi-Stream LLMs: Unblocking
-Language Models with Parallel Streams of Thoughts, Inputs and Outputs"*:
-training Qwen2.5-7B-base and Qwen3-4B-base as parallel-stream models on a
+Code for **Section 6 (Security)** of *"Multi-Stream LLMs: Unblocking Language
+Models with Parallel Streams of Thoughts, Inputs and Outputs"*: training
+Qwen2.5-7B-base and Qwen3-4B-base as parallel-stream models on a
 multi-stream-reconstructed Alpaca dataset, then evaluating prompt-injection
 robustness.
 
@@ -10,29 +10,17 @@ Streams are interleaved into a single token sequence with per-stream RoPE
 counters, additive stream embeddings, a stream-causal attention mask, and
 a single shared LM head.
 
-This subfolder is self-contained for Sec 6. Sec 5 (efficiency) lives in
-`../sec5_efficiency/` and shares much of the same multi-head training
-infrastructure but is kept separate for clarity.
-
 ## Layout
 
 ```
 train/
-  qwen_medusa/                    Qwen2.5 backbone + multi-stream interleaved packing
-  rotary_embedding_torch/         vendored RoPE library (incl. ChannelPhaseRoPE)
-  custom_datasets/                multi-head Dataset / Collator + data-prep
+  qwen2/                          Qwen2.5 backbone + multi-stream interleaved packing
+  custom_datasets/                multi-head Dataset / Collator
   train/                          training entry + trainer + deepspeed configs
     train.py                      Sec 6 entry (Qwen2.5 base, multi-head)
-    custom_trainer_contrast_new5.py   trainer used by train.py
-  eval/                           offline evaluators
-    medusa_eval_safety.py         security suite driver (StruQ, BIPIA, RuLES via aside/)
-    eval_ifeval_hf_lmeval_scoring.py   IFEval capability check
-  scripts/                        launch + benchmark scripts
+    custom_trainer.py             trainer used by train.py
+  scripts/
     multi_gpu/train_qwen2_security.sh    canonical training launcher
-    infer/                                  microbenchmarks
-  prepare/                        tokenizer-extension pipeline
-infer/                            paper-side inference script
-  infer.sh                        example invocation
 ```
 
 ## Setup
@@ -42,9 +30,9 @@ pip install -r train/train/requirements.txt
 export SEC6_ROOT=$(pwd)
 ```
 
-The security evaluator additionally requires the upstream
-**ASIDE / safety_evals** harness (Zverev et al.), which is **not** vendored
-here. Clone separately and set `ASIDE_ROOT`:
+The security evaluator requires the upstream **ASIDE / safety_evals** harness
+(Zverev et al.), which is **not** vendored here. Clone separately and set
+`ASIDE_ROOT`:
 
 ```bash
 git clone https://github.com/eth-sri/aside /path/to/aside
@@ -53,9 +41,8 @@ export ASIDE_ROOT=/path/to/aside
 
 ## Training (Sec 6: Security, Qwen2.5-7B / Qwen3-4B)
 
-`train/scripts/multi_gpu/train_qwen2_security.sh` is the canonical
-launcher. Set `SEC6_ROOT`, `BASE_MODEL`, and `TRAIN_FILE`, then `bash` it.
-Underlying command:
+`train/scripts/multi_gpu/train_qwen2_security.sh` is the canonical launcher.
+Set `SEC6_ROOT`, `MODEL`, and `TRAIN_FILE`, then `bash` it. Underlying command:
 
 ```bash
 accelerate launch \
@@ -73,9 +60,8 @@ accelerate launch \
   --output_dir /path/to/checkpoints
 ```
 
-`train.py` imports `Qwen2ForMedusa` from `qwen_medusa/` and
-`CustomizedTrainer` from `custom_trainer_contrast_new5.py`.
-
+`train.py` imports `Qwen2ForMultiStream` from `qwen2/` and
+`CustomizedTrainer` from `custom_trainer.py`.
 
 ## Evaluation (Sec 6 benchmarks)
 
@@ -89,24 +75,7 @@ Benchmarks reported in paper Table 3:
 | Direct prompt injection    | RuLES            | via `aside/...`                                           |
 | Indirect prompt injection  | StruQ-ID         | via `aside/.../struq/data/`                               |
 | Indirect prompt injection  | StruQ-OOD        | via `aside/.../struq/data/`                               |
-| Safe & Helpful             | NESSiE           | **scorer not in this release** — see Known gaps below     |
-| Instruction following      | IFEval           | `train/eval/eval_ifeval_hf_lmeval_scoring.py`             |
-
-Drive the security suite (requires `ASIDE_ROOT` and `SEC6_ROOT` set):
-
-```bash
-python train/eval/medusa_eval_safety.py \
-  --model /path/to/checkpoint \
-  --output_dir results/security_eval
-```
-
-IFEval scoring (capability check):
-
-```bash
-python train/eval/eval_ifeval_hf_lmeval_scoring.py \
-  --model /path/to/checkpoint \
-  --output_dir results/ifeval
-```
+| Instruction following      | IFEval           | via `lm-eval-harness` with `ASIDE_ROOT` set               |
 
 ## Notes
 

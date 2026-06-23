@@ -975,6 +975,86 @@ class GenResult:
     prompt_formatted: str
 
 
+class StreamGenerator:
+    """Multi-stream generator: uses Qwen3ForMultiStream in 2-stream interleaved mode.
+
+    Drop-in replacement for HFGenerator — same generate(prompt) -> GenResult
+    interface, but runs the multi-stream inference path (user tokens fed
+    one-per-step while the assistant stream generates in parallel).
+    """
+
+    def __init__(
+        self,
+        model: str,
+        max_new_tokens: int = 1024,
+        temperature: float = 0.0,
+        top_p: float = 0.8,
+        top_k: int = 0,
+        presence_penalty: float = 0.0,
+        seed: int = 42,
+        device: str = "cuda",
+        **_ignored,
+    ):
+        import random
+        import sys, os
+        random.seed(seed)
+        torch.manual_seed(seed)
+
+        _train = os.path.join(os.path.dirname(__file__), "..", "train")
+        if _train not in sys.path:
+            sys.path.insert(0, _train)
+
+        from qwen3 import Qwen3ForMultiStream, Qwen3StreamConfig
+
+        config = Qwen3StreamConfig.from_pretrained(model)
+        config.use_cache = True
+        self._model = Qwen3ForMultiStream.from_pretrained(
+            model, config=config, torch_dtype=torch.bfloat16, ignore_mismatched_sizes=True
+        ).to(device).eval()
+        self.tokenizer = self._model.tokenizer
+        self.max_new_tokens = int(max_new_tokens)
+        self.temperature = float(temperature)
+        self.top_p = float(top_p)
+        self.top_k = int(top_k)
+        self.presence_penalty = float(presence_penalty)
+
+    @torch.inference_mode()
+    def generate(self, prompt: str) -> GenResult:
+        do_sample = self.temperature > 0
+        start_t = time.perf_counter()
+        outputs = self._model.generate_stream(
+            question_text=prompt,
+            max_new_tokens=self.max_new_tokens,
+            temperature=self.temperature if do_sample else 1.0,
+            top_p=self.top_p if do_sample else 1.0,
+            top_k=self.top_k,
+            do_sample=do_sample,
+            presence_penalty=self.presence_penalty,
+        )
+        toks = outputs.get(0, torch.empty(0, dtype=torch.long))
+        text = self.tokenizer.decode(toks.tolist(), skip_special_tokens=True).strip() if toks.numel() else ""
+        end_t = time.perf_counter()
+        latency_s = end_t - start_t
+
+        tok = self.tokenizer
+        completion_tokens = len(tok.encode(text, add_special_tokens=False))
+        prompt_tokens = len(tok.encode(prompt, add_special_tokens=False))
+        toks_per_s = completion_tokens / max(1e-6, latency_s)
+
+        return GenResult(
+            text=text,
+            text_streamed=text,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            ttft_s=None,
+            ttft_tokens=None,
+            latency_s=latency_s,
+            toks_per_s=toks_per_s,
+            prompt_raw=prompt,
+            prompt_formatted=prompt,
+        )
+
+
 class HFGenerator:
     def __init__(
         self,
@@ -2295,6 +2375,8 @@ def main():
 
     parser.add_argument("--use_qwen_best_practices", action="store_true")
     parser.add_argument("--reflection", action="store_true")
+    parser.add_argument("--stream", action="store_true",
+                        help="Use multi-stream inference (Qwen3ForMultiStream) instead of standard HF generation")
 
     parser.add_argument(
         "--squad_cache",
@@ -2342,20 +2424,31 @@ def main():
     if args.presence_penalty is None:
         args.presence_penalty = 0.0
 
-    gen = HFGenerator(
-        model=args.model,
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-        top_k=args.top_k,
-        min_p=args.min_p,
-        repetition_penalty=args.repetition_penalty,
-        presence_penalty=args.presence_penalty,
-        seed=args.seed,
-        think_mode=args.think_mode,
-        measure_ttft=(not args.no_ttft),
-        inject_think_tokens=args.inject_think_tokens,
-    )
+    if args.stream:
+        gen = StreamGenerator(
+            model=args.model,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            top_k=args.top_k,
+            presence_penalty=args.presence_penalty,
+            seed=args.seed,
+        )
+    else:
+        gen = HFGenerator(
+            model=args.model,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            top_k=args.top_k,
+            min_p=args.min_p,
+            repetition_penalty=args.repetition_penalty,
+            presence_penalty=args.presence_penalty,
+            seed=args.seed,
+            think_mode=args.think_mode,
+            measure_ttft=(not args.no_ttft),
+            inject_think_tokens=args.inject_think_tokens,
+        )
 
     if task == "gsm8k":
         ds = load_dataset("openai/gsm8k", "main")

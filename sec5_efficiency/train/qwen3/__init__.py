@@ -5,5 +5,5 @@
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
-from .configuration_qwen3 import Qwen3MedusaConfig
-from .modeling_qwen3_new_28 import Qwen3ForMedusa
+from .configuration_qwen3 import Qwen3StreamConfig
+from .modeling_qwen3 import Qwen3ForMultiStream

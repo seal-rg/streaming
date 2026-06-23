@@ -22,7 +22,7 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class Qwen3MedusaConfig(PretrainedConfig):
+class Qwen3StreamConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`Qwen3Model`]. It is used to instantiate a
     Qwen3 model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -175,7 +175,7 @@ class Qwen3MedusaConfig(PretrainedConfig):
         max_window_layers=28,
         layer_types=None,
         attention_dropout=0.0,
-        medusa_num_heads=2,
+        num_streams=2,
         medusa_num_layers=2,
         **kwargs,
     ):
@@ -204,7 +204,7 @@ class Qwen3MedusaConfig(PretrainedConfig):
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
         
-        self.medusa_num_heads = medusa_num_heads
+        self.num_streams = num_streams
         self.medusa_num_layers = medusa_num_layers
         # Validate the correctness of rotary position embeddings parameters
         # BC: if there is a 'type' field, move it to 'rope_type'.
@@ -228,4 +228,4 @@ class Qwen3MedusaConfig(PretrainedConfig):
         )
 
 
-__all__ = ["Qwen3MedusaConfig"]
+__all__ = ["Qwen3StreamConfig"]

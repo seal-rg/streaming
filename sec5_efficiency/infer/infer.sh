@@ -1,10 +1,26 @@
-# proofwriter,gsm8k,mathqa,logicnli,logiqa,mmlu_redux,arc_c
-# ${MODELS_ROOT}/Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554
-# ${MODELS_ROOT}/Qwen--Qwen3-8B/snapshots/b968826d9c46dd6066d109eabc6255188de91218
-python3 ${SEC5_ROOT}/infer/infer.py \
-  --model ${MODELS_ROOT}/Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28 \
-  --tasks arc_c \
-  --n_samples 5 \
-  --max_new_tokens 1024 \
-  --reflection \
-  --out_dir ${SEC5_ROOT}/infer/output/eval_arc_c_v1
+#!/usr/bin/env bash
+# Evaluate a Sec 5 multi-stream checkpoint on one benchmark task.
+#
+# Required env vars:
+#   SEC5_ROOT   — path to sec5_efficiency/
+#   MODEL       — path to the trained Qwen3ForMultiStream checkpoint
+#
+# Optional env vars (with defaults shown):
+#   TASK        — gsm8k | proofwriter | logicnli | mathqa | logiqa | arc_c |
+#                 math500 | strategyqa | squad | pubmedqa   (default: gsm8k)
+#   N           — number of samples, 0 = all                (default: 0)
+#   MAX_TOKENS  — max new tokens per sample                  (default: 1024)
+#   OUT_DIR     — output directory                           (default: ${SEC5_ROOT}/infer/output)
+
+TASK=${TASK:-gsm8k}
+N=${N:-0}
+MAX_TOKENS=${MAX_TOKENS:-1024}
+OUT_DIR=${OUT_DIR:-${SEC5_ROOT}/infer/output/${TASK}}
+
+python3 ${SEC5_ROOT}/infer/infer_qwen3.py \
+  --model   ${MODEL} \
+  --task    ${TASK} \
+  --n       ${N} \
+  --max_new_tokens ${MAX_TOKENS} \
+  --stream \
+  --out_dir ${OUT_DIR}
