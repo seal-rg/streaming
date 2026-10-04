@@ -77,6 +77,31 @@ Benchmarks reported in paper Table 3:
 | Indirect prompt injection  | StruQ-OOD        | via `aside/.../struq/data/`                               |
 | Instruction following      | IFEval           | via `lm-eval-harness` with `ASIDE_ROOT` set               |
 
+## Training data we released
+
+The multi-stream-reconstructed Alpaca SFT data used to train both the
+Qwen2.5-7B and Qwen3-4B security checkpoints (48,538 examples,
+`instruction`/`input`/`output`) is public on Hugging Face:
+
+**https://huggingface.co/datasets/guinansu/paragen-security-sft-alpaca**
+
+Field mapping: `instruction` -> system message (falls back to a default if
+empty), `input` -> user message (may be empty), `output` -> assistant
+target. See that dataset's own README for provenance/license notes.
+
+## Released checkpoints
+
+The Qwen3-4B vanilla/stream pair from Table 3 is public on Hugging Face, each
+pinned at a fixed revision:
+
+| Variant | Repo | Revision |
+| --- | --- | --- |
+| Vanilla (baseline) | [`guinansu/vanilla-qwen3-4b-security`](https://huggingface.co/guinansu/vanilla-qwen3-4b-security) | `2a94879b4a03fc791b229dc443580ad89638176b` |
+| Stream (ours) | [`guinansu/stream-qwen3-4b-security`](https://huggingface.co/guinansu/stream-qwen3-4b-security) | `6b1fd82efd84fc5aa841df1c5e392058155bbfe4` |
+
+The Qwen2.5-7B pair is not currently released as checkpoints; only the
+training data above is public for that variant.
+
 ## Notes
 
 - All cluster-specific paths are placeholder shell variables: `${SEC6_ROOT}`

@@ -30,3 +30,5 @@ config/cluster_sweep
 
 results.csv
 uv.lock
+
+data_prep_out/
