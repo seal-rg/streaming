@@ -1,0 +1,8 @@
+[
+  {
+    "system": "Below is an instruction that describes a task, paired with an input that provides further context.\nWrite a response that appropriately completes the request.\n\nInstruction:\n{}\n",
+    "user": "Input:\n{}\n",
+    "output": "Response: {}.\n\n"
+  }
+
+]

@@ -21,6 +21,9 @@ train/
     custom_trainer.py             trainer used by train.py
   scripts/
     multi_gpu/train_qwen2_security.sh    canonical training launcher
+eval/
+  security_bench/                 self-contained eval suite for the Qwen3-4B
+                                   Vanilla/Stream pair (see its own README)
 ```
 
 ## Setup
@@ -30,9 +33,12 @@ pip install -r train/train/requirements.txt
 export SEC6_ROOT=$(pwd)
 ```
 
-The security evaluator requires the upstream **ASIDE / safety_evals** harness
-(Zverev et al.), which is **not** vendored here. Clone separately and set
-`ASIDE_ROOT`:
+For the Qwen3-4B Vanilla/Stream pair, evaluation is fully self-contained --
+see `eval/security_bench/README.md`, no extra clone needed.
+
+For the Qwen2.5-7B pair, evaluation instead goes through the upstream
+**ASIDE / safety_evals** harness (Zverev et al.), which is **not** vendored
+here. Clone separately and set `ASIDE_ROOT`:
 
 ```bash
 git clone https://github.com/eth-sri/aside /path/to/aside
@@ -67,15 +73,23 @@ accelerate launch \
 
 Benchmarks reported in paper Table 3:
 
-| Type                       | Benchmark        | Status                                                    |
-| -------------------------- | ---------------- | --------------------------------------------------------- |
-| Direct prompt injection    | TensorTrust      | via `aside/experiments/evaluations/` — set `ASIDE_ROOT`   |
-| Direct prompt injection    | Gandalf          | via `aside/...`                                           |
-| Direct prompt injection    | Purple           | via `aside/...`                                           |
-| Direct prompt injection    | RuLES            | via `aside/...`                                           |
-| Indirect prompt injection  | StruQ-ID         | via `aside/.../struq/data/`                               |
-| Indirect prompt injection  | StruQ-OOD        | via `aside/.../struq/data/`                               |
-| Instruction following      | IFEval           | via `lm-eval-harness` with `ASIDE_ROOT` set               |
+| Type                       | Benchmark        | Qwen3-4B (Vanilla/Stream)         | Qwen2.5-7B                                 |
+| -------------------------- | ---------------- | ---------------------------------- | ------------------------------------------- |
+| Direct prompt injection    | TensorTrust      | `eval/security_bench/` (vendored) | via `aside/experiments/evaluations/`        |
+| Direct prompt injection    | Gandalf          | `eval/security_bench/`            | via `aside/...`                             |
+| Direct prompt injection    | Purple           | `eval/security_bench/`            | via `aside/...`                             |
+| Direct prompt injection    | RuLES            | `eval/security_bench/`            | via `aside/...`                             |
+| Indirect prompt injection  | StruQ-ID         | `eval/security_bench/`            | via `aside/.../struq/data/`                 |
+| Indirect prompt injection  | StruQ-OOD        | `eval/security_bench/`            | via `aside/.../struq/data/`                 |
+| Instruction following      | IFEval           | `eval/security_bench/`            | via `lm-eval-harness` with `ASIDE_ROOT` set |
+
+Run it with:
+
+```bash
+cd eval/security_bench
+./run_security_eval.sh _ 0   # Vanilla
+./run_security_eval.sh _ 1   # Stream
+```
 
 ## Training data we released
 
